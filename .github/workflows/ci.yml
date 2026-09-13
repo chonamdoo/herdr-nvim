@@ -14,5 +14,8 @@ jobs:
         with:
           neovim: true
           version: stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - uses: extractions/setup-just@v2
       - run: just ci

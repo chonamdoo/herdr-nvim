@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* Add a safe repeatable installer for an isolated, locked LazyVim/neo-tree/gitsigns profile on macOS and Linux.
+* Refresh visible clean buffers after agent saves without discarding unsaved user edits; preserve editor layout across sidebar toggles.
+* Build the local fork from Cargo.lock instead of downloading upstream release binaries.
+
+### Bug Fixes
+
+* Make the live doctor sentinel independent of explorer focus and insert-mode mappings.
+* Preserve caller-selected tool versions in plugin actions instead of shadowing them with older fallback installations.
+
 ## [1.0.0](https://github.com/ChmaraX/herdr-nvim/compare/v0.3.0...v1.0.0) (2026-09-03)
 
 

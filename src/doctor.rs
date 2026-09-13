@@ -261,10 +261,19 @@ fn check_f19(
     // Let the remote UI attach before we drive it.
     sleep(Duration::from_millis(1500));
 
+    // Render in a regular window: explorer windows can redirect buffer changes
+    // and leave a freshly created sentinel buffer hidden.
     let sentinel = format!("DOCTOR_NVIM_OK_{}", std::process::id());
     nvim_remote_send(
         socket,
-        &format!("<Esc><Cmd>enew<CR>i{sentinel}<Esc>"),
+        &format!(
+            "<Esc><Cmd>lua local b=vim.api.nvim_create_buf(true,false); \
+             vim.api.nvim_buf_set_lines(b,0,-1,false,{{{sentinel:?}}}); \
+             for _,w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do \
+             if vim.bo[vim.api.nvim_win_get_buf(w)].buftype=='' \
+             and vim.api.nvim_win_get_config(w).relative=='' then \
+             vim.api.nvim_win_set_buf(w,b); break end end<CR>"
+        ),
         sidebar,
     )?;
 

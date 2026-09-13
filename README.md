@@ -1,8 +1,10 @@
 # herdr-nvim
 
-[![CI](https://github.com/ChmaraX/herdr-nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/ChmaraX/herdr-nvim/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/ChmaraX/herdr-nvim)](https://github.com/ChmaraX/herdr-nvim/releases)
+[![CI](https://github.com/chonamdoo/herdr-nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/chonamdoo/herdr-nvim/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/ChmaraX/herdr-nvim)](LICENSE)
+
+Personal portable configuration fork of [ChmaraX/herdr-nvim](https://github.com/ChmaraX/herdr-nvim).
+The upstream plugin identity remains `chmarax.herdr-nvim`.
 
 Neovim, built into your [herdr](https://herdr.dev) workspace: a persistent
 nvim sidebar one key away, with quick access to the files your agent works on.
@@ -24,52 +26,121 @@ nvim sidebar one key away, with quick access to the files your agent works on.
 
 ## Requirements
 
-nvim ≥ 0.10 · herdr ≥ 0.7.4 · runs inside a herdr session
+macOS or Linux, inside Herdr. The bundled editor needs Neovim ≥ 0.11.3,
+Herdr ≥ 0.7.4, Python ≥ 3.11, Git ≥ 2.19, Cargo ≥ 1.85, a C toolchain,
+`make`, `bash`, `rg`, `fd` (or `fdfind`), `tree-sitter`, `curl`, and `tar`.
+Use a Nerd Font in the terminal for tree/status icons. Native Windows is not supported.
 
-## Install
+## Portable install
 
-Both halves come from this repo:
-
-**1. The herdr plugin** (sidebar + picker):
+On macOS, install the command-line prerequisites (install Herdr separately):
 
 ```sh
-herdr plugin install ChmaraX/herdr-nvim
-# or, for a local checkout: herdr plugin link /path/to/herdr-nvim
+brew install neovim ripgrep fd python@3.13 tree-sitter-cli
+# Install Rust/Cargo with rustup and Apple's command-line tools if missing.
+mkdir -p ~/Developer/Aiproject
+git clone https://github.com/chonamdoo/herdr-nvim.git ~/Developer/Aiproject/herdr-nvim
+cd ~/Developer/Aiproject/herdr-nvim
+bash setup.sh --dry-run
+bash setup.sh
 ```
 
-Bind keys to the two actions in `~/.config/herdr/config.toml` (herdr binds
-none by default):
+On Linux, install the same prerequisites through your distribution/rustup.
+Check Neovim and Python versions: distribution packages may be too old.
+Then clone the same repository and run `bash setup.sh`.
 
-```toml
-[[keys.command]]
-key = "prefix+e"
-type = "plugin_action"
-command = "chmarax.herdr-nvim.toggle"
-description = "nvim sidebar"
+The installer builds **this checkout** with `cargo --locked`, links it to Herdr,
+copies `setup/nvim` into `${XDG_CONFIG_HOME:-~/.config}/herdr-editor`, and restores
+the checked-in `lazy-lock.json`. It also waits for the profile's syntax parsers
+to install. It never downloads an upstream Herdr plugin binary.
 
-[[keys.command]]
-key = "prefix+o"
-type = "plugin_action"
-command = "chmarax.herdr-nvim.pick-file"
-description = "open file from agent output"
+`NVIM_APPNAME=herdr-editor` isolates editor config, data, state, and cache from
+your normal Neovim. `local.lua` is generated on each PC with that PC's checkout
+path; do not commit it. Home/XDG paths, `HERDR_CONFIG_PATH`, and
+`HERDR_NVIM_CONFIG` are respected.
+
+Herdr bindings are added without replacing existing settings:
+
+| Keys (default prefix is `Ctrl+b`) | Action |
+| --- | --- |
+| `Ctrl+b`, then `Ctrl+e` | Open/close the sidebar |
+| `Ctrl+b`, then `Ctrl+o` | Agent-touched/repo file picker |
+
+Existing `prefix+e` scrollback and `prefix+o` bindings are left alone.
+Herdr normally reloads its configuration; if bindings do not appear, use
+Herdr's reload-config action. Do not restart agent panes.
+
+### Safety and updates
+
+```sh
+bash setup.sh --config-only             # No build, link, or network
+bash setup.sh --dry-run                 # Preflight, no writes
+bash setup.sh --toggle-key prefix+ctrl+e --picker-key prefix+ctrl+o
+git pull --ff-only
+bash setup.sh                          # Repeat after an update or checkout move
 ```
 
-**2. The nvim plugin** (annotations), with your plugin manager (e.g. lazy.nvim):
+Changed destination files get timestamped `.bak.*` backups. A modified managed
+editor file is refused unless you explicitly pass `--replace-profile`, which
+backs it up before replacing it. Extra user files are preserved. Edit
+`setup/nvim` in the repository and commit your changes to share them across PCs,
+rather than editing the installed copy. Existing user-owned conflicting action
+bindings or `sidebar.nvim_env` require explicit reconciliation; setup does not
+silently erase them. Configuration roots and parent directories are resolved
+through symlinks (including macOS `/var`); symlinked managed files and directories
+within the editor profile are refused.
 
-```lua
-{ "ChmaraX/herdr-nvim", opts = {} }
-```
+Each file replacement is atomic, but the entire installation is not a transaction.
+A build, network, or plugin-registration failure stops the installer; completed
+steps remain in place for diagnosis and a repeat run. Keep the checkout: Herdr
+links it and the Neovim profile loads its local Lua plugin.
+
+Plugin commits and Cargo dependencies are locked. OS tools, fonts, language
+servers/formatters installed by Mason, and terminal capabilities are not made
+identical by the lockfile. Use the same repository commit and compatible tools
+on both PCs; do not use `:Lazy update` on only one PC and expect matching versions.
+To deliberately update plugins, update the repository profile's lock through
+Lazy, review/test it, commit it, then reinstall on each PC.
+
+### Seeing agent changes
+
+The profile uses [LazyVim](https://github.com/LazyVim/LazyVim), its official
+[neo-tree extra](https://www.lazyvim.org/extras/editor/neo-tree), and built-in
+[gitsigns](https://github.com/lewis6991/gitsigns.nvim) integration. The tree opens
+once on the first UI attachment; reopening the sidebar preserves your layout.
+
+Visible, unmodified files refresh every 750 ms while the sidebar UI is attached,
+including atomic file replacements. Unsaved buffers are never overwritten.
+Hidden buffers are not polled, and the timer stops when the last UI detaches.
+This shows disk saves, not an agent's private in-memory edits; it does not switch
+files behind your cursor. Use the touched-file picker to move to another file.
+
+Inside Neovim, `<leader>` is Space:
+
+| Keys | Action |
+| --- | --- |
+| `<leader>e` | Explorer |
+| `<leader>ff` | Find file |
+| `<leader>gs` | Changed files |
+| `<leader>gd` | Git diff picker |
+| `<leader>ghp` | Preview current hunk |
+| `<leader>ghd` | Current-file diff |
+| `/` | Normal in-buffer search |
+
+Diagnostics remain enabled; format-on-save is disabled to avoid changing code
+merely while reviewing it. Existing upstream annotation mappings are below.
+Toggle the **Herdr sidebar**, rather than `:qa`, to preserve unsaved buffers.
 
 ## The sidebar
 
-`prefix+e` toggles it. Each tab gets its own nvim, backed by a headless
+`prefix+ctrl+e` toggles it. Each tab gets its own nvim, backed by a headless
 daemon that survives the toggle. Two tabs can show two different files in two
 sidebars. When you close and reopen a sidebar, it loses nothing. herdr
 removes the daemons of closed tabs automatically.
 
 ## The file picker
 
-`prefix+o` pops a fuzzy file picker. It has two modes:
+`prefix+ctrl+o` pops a fuzzy file picker. It has two modes:
 
 - **Default view (no query):** the files touched this session, newest first.
   It mines edits from the agent's session log and adds uncommitted git
@@ -182,18 +253,19 @@ still injects this plugin's lua over runtimepath after your config loads
 ## Troubleshooting
 
 ```sh
-herdr-nvim doctor                     # live checks: splits, toggle, daemon, remote-ui
-herdr-nvim doctor --with-agent claude # also verify agent registration
+./bin/herdr-nvim doctor                     # live split, toggle and remote-UI checks
+./bin/herdr-nvim doctor --with-agent claude # also launch an agent registration check
 ```
 
 Doctor runs labeled checks in a scratch workspace and always removes them
 afterward. The most common failure is `daemon-healthy` FAIL: the nvim daemon
 did not start. Make sure that `sidebar.nvim_bin` points at a working nvim ≥
-0.10.
+0.11.3 for this bundled profile.
 
 ## Tests
 
 ```sh
-just ci    # cargo fmt + cargo test + headless Lua suite
+just ci    # Rust formatting/tests, Lua regressions and Python installer tests
+# If python3 is older than 3.11 (for example, Apple's system Python):
+PYTHON=python3.13 just ci
 ```
-test
