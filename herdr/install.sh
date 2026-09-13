@@ -1,26 +1,22 @@
 #!/usr/bin/env bash
-# herdr plugin build hook: fetch the prebuilt binary for this platform, or
-# build from source as a fallback (reviewr pattern).
+# Always build this checkout: a fork's edits must never be replaced by an
+# upstream release binary. Build for this host, not a configured cross target.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-mkdir -p bin
-version=$(sed -n 's/^version = "\(.*\)"/\1/p' herdr-plugin.toml | head -1)
-case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64)  target=aarch64-apple-darwin ;;
-  Darwin-x86_64) target=x86_64-apple-darwin ;;
-  Linux-x86_64)  target=x86_64-unknown-linux-gnu ;;
-  Linux-aarch64) target=aarch64-unknown-linux-gnu ;;
-  *) target="" ;;
-esac
-url="https://github.com/ChmaraX/herdr-nvim/releases/download/v${version}/herdr-nvim-${target}"
-if [ -n "$target" ] && curl -fsSL "$url" -o bin/herdr-nvim.tmp; then
-  mv bin/herdr-nvim.tmp bin/herdr-nvim
-  chmod +x bin/herdr-nvim
-elif command -v cargo >/dev/null; then
-  echo "herdr-nvim: no prebuilt binary; building from source" >&2
-  cargo build --release
-  cp target/release/herdr-nvim bin/herdr-nvim
-else
-  echo "herdr-nvim: no prebuilt binary for ${target:-$(uname -s)-$(uname -m)} and no cargo" >&2
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd -- "$ROOT"
+export PATH="${PATH:-}:/opt/homebrew/bin:/usr/local/bin:${HOME:?}/.cargo/bin"
+if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+  printf '%s\n' 'herdr-nvim: Rust/Cargo is required to build this checkout.' >&2
   exit 1
 fi
+host="$(rustc -vV | sed -n 's/^host: //p')"
+cargo build --manifest-path "$ROOT/Cargo.toml" --release --locked --target "$host" --target-dir "$ROOT/target"
+mkdir -p "$ROOT/bin"
+temporary="$(mktemp "$ROOT/bin/.herdr-nvim.XXXXXX")"
+trap 'rm -f "$temporary"' EXIT
+cp "$ROOT/target/$host/release/herdr-nvim" "$temporary"
+chmod +x "$temporary"
+if [ -f "$ROOT/bin/herdr-nvim" ] && ! cmp -s "$temporary" "$ROOT/bin/herdr-nvim"; then
+  cp -p "$ROOT/bin/herdr-nvim" "$ROOT/bin/herdr-nvim.bak.$(date +%Y%m%d%H%M%S).$$"
+fi
+mv -f "$temporary" "$ROOT/bin/herdr-nvim"
