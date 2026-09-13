@@ -1,4 +1,4 @@
-"""Configuration deployment contracts; no real home, network, or Herdr session."""
+"""Deployment contracts; no home configuration writes, network, or Herdr session."""
 import os
 from pathlib import Path
 import subprocess
@@ -111,6 +111,42 @@ class PortableSetupTests(unittest.TestCase):
         self.assertNotIn("Traceback", result.stderr)
         self.assertEqual(plugin.read_text(), original)
         self.assertFalse((self.config / "herdr-editor").exists())
+
+
+    def test_configured_cargo_target_never_installs_stale_host_artifact(self):
+        checkout = self.home / "build checkout"
+        (checkout / "src").mkdir(parents=True)
+        (checkout / "herdr").mkdir()
+        (checkout / "target/release").mkdir(parents=True)
+        (checkout / "Cargo.toml").write_text(
+            '[package]\nname = "herdr-nvim"\nversion = "0.1.0"\nedition = "2021"\n'
+        )
+        (checkout / "src/main.rs").write_text(
+            'fn main() { println!("fresh-native-build"); }\n'
+        )
+        (checkout / "herdr/install.sh").write_bytes((ROOT / "herdr/install.sh").read_bytes())
+        stale = checkout / "target/release/herdr-nvim"
+        stale.write_text("#!/bin/sh\nprintf 'stale-host-artifact\\n'\n")
+        stale.chmod(0o755)
+        version = subprocess.run(
+            ["rustc", "-vV"], check=True, capture_output=True, text=True
+        ).stdout
+        host = next(line.removeprefix("host: ") for line in version.splitlines()
+                    if line.startswith("host: "))
+        build_env = dict(os.environ, CARGO_BUILD_TARGET=host)
+        subprocess.run(
+            ["cargo", "generate-lockfile", "--offline"], cwd=checkout,
+            env=build_env, check=True, capture_output=True, text=True,
+        )
+        result = subprocess.run(
+            ["bash", "herdr/install.sh"], cwd=checkout, env=build_env,
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        installed = subprocess.run(
+            [str(checkout / "bin/herdr-nvim")], check=True, capture_output=True, text=True
+        )
+        self.assertEqual(installed.stdout, "fresh-native-build\n")
 
 
 if __name__ == "__main__":

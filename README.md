@@ -53,6 +53,8 @@ The installer builds **this checkout** with `cargo --locked`, links it to Herdr,
 copies `setup/nvim` into `${XDG_CONFIG_HOME:-~/.config}/herdr-editor`, and restores
 the checked-in `lazy-lock.json`. It also waits for the profile's syntax parsers
 to install. It never downloads an upstream Herdr plugin binary.
+The plugin is built explicitly for the current Rust host, overriding Cargo's
+configured cross-compilation target; a stale build for another target is never installed.
 
 `NVIM_APPNAME=herdr-editor` isolates editor config, data, state, and cache from
 your normal Neovim. `local.lua` is generated on each PC with that PC's checkout

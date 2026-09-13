@@ -12,6 +12,7 @@
 
 * Make the live doctor sentinel independent of explorer focus and insert-mode mappings.
 * Preserve caller-selected tool versions in plugin actions instead of shadowing them with older fallback installations.
+* Install the freshly built native artifact even when Cargo has a configured build target.
 
 ## [1.0.0](https://github.com/ChmaraX/herdr-nvim/compare/v0.3.0...v1.0.0) (2026-09-03)
 
